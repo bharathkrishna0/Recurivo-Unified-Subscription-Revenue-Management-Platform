@@ -251,6 +251,7 @@ export function TransitionForm({
   consequence,
   needsReason,
   primary,
+  portal,
 }: {
   id: string;
   version: number;
@@ -259,6 +260,7 @@ export function TransitionForm({
   consequence: string;
   needsReason?: boolean;
   primary?: boolean;
+  portal?: boolean;
 }) {
   const [state, action, pending] = useActionState(transitionAction, initial);
   const [open, setOpen] = useState(false);
@@ -275,6 +277,7 @@ export function TransitionForm({
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="action" value={lifecycleAction} />
       <input type="hidden" name="expectedVersion" value={version} />
+      {portal ? <input type="hidden" name="from" value="portal" /> : null}
       <p className="text-body">{consequence}</p>
       {needsReason ? <TextareaField label="Reason" name="reason" required defaultValue={state.values?.reason} error={state.fields?.reason} rows={2} /> : null}
       <div className="flex gap-3">
