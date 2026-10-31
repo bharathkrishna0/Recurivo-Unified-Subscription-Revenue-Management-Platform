@@ -73,10 +73,22 @@ async function main() {
       { productId: crm.id, name: "CRM Yearly", interval: "YEARLY" as const, price: "21600", minQuantity: 5, allowPause: false, allowEarlyClose: false },
       { productId: support.id, name: "Support Monthly", interval: "MONTHLY" as const, price: "1500", minQuantity: 1, allowPause: true, allowEarlyClose: true },
     ];
+    const planIds: string[] = [];
     for (const p of plans) {
       const plan = await db.plan.create({ data: { organizationId: org.id, ...p } });
       await db.planVersion.create({ data: { planId: plan.id, version: 1, price: p.price, minQuantity: p.minQuantity } });
+      planIds.push(plan.id);
     }
+    await db.quotationTemplate.create({
+      data: {
+        organizationId: org.id,
+        name: "CRM starter (5 seats + support)",
+        planId: planIds[0],
+        validityDays: 30,
+        terms: "Prices exclude applicable taxes, which are shown separately.",
+        lines: { create: [{ productId: crm.id, quantity: 5, position: 0 }, { productId: support.id, quantity: 1, position: 1 }] },
+      },
+    });
     await db.taxRule.create({
       data: { organizationId: org.id, name: "GST 18%", jurisdiction: "India", rate: "18", scope: "ALL_PRODUCTS", effectiveFrom: new Date("2026-01-01T00:00:00Z") },
     });

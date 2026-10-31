@@ -379,9 +379,10 @@ model DiscountRule {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  product      Product?             @relation(fields: [productId], references: [id])
-  redemptions  DiscountRedemption[]
+  organization  Organization         @relation(fields: [organizationId], references: [id])
+  product       Product?             @relation(fields: [productId], references: [id])
+  redemptions   DiscountRedemption[]
+  subscriptions Subscription[]
 
   @@index([organizationId, status])
 }
@@ -456,6 +457,11 @@ model Subscription {
   pausedAt         DateTime?
   closedAt         DateTime?
   closeReason      String?
+  discountRuleId   String?
+  subtotal         Decimal            @default(0) @db.Decimal(18, 4)
+  discountTotal    Decimal            @default(0) @db.Decimal(18, 4)
+  taxTotal         Decimal            @default(0) @db.Decimal(18, 4)
+  total            Decimal            @default(0) @db.Decimal(18, 4)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -466,6 +472,7 @@ model Subscription {
   owner        User?              @relation("SubscriptionOwner", fields: [ownerId], references: [id])
   renewedFrom  Subscription?      @relation("Renewal", fields: [renewedFromId], references: [id])
   renewal      Subscription?      @relation("Renewal")
+  discountRule DiscountRule?      @relation(fields: [discountRuleId], references: [id])
   lines        SubscriptionLine[]
   cycles       BillingCycle[]
   invoices     Invoice[]
@@ -483,6 +490,13 @@ model SubscriptionLine {
   description    String
   quantity       Int
   unitPrice      Decimal         @db.Decimal(18, 4)
+  lineSubtotal   Decimal         @default(0) @db.Decimal(18, 4)
+  discountAmount Decimal         @default(0) @db.Decimal(18, 4)
+  taxableAmount  Decimal         @default(0) @db.Decimal(18, 4)
+  taxRate        Decimal         @default(0) @db.Decimal(7, 4)
+  taxAmount      Decimal         @default(0) @db.Decimal(18, 4)
+  total          Decimal         @default(0) @db.Decimal(18, 4)
+  taxBreakdown   Json            @default("[]")
   position       Int             @default(0)
   subscription   Subscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   product        Product         @relation(fields: [productId], references: [id])

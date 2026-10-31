@@ -16,6 +16,7 @@ const LABELS: Record<string, { text: string; tone?: "soft" | "strong"; icon?: "c
   OPEN: { text: "Open", tone: "strong" },
   RESOLVED: { text: "Resolved", tone: "soft" },
   ARCHIVED: { text: "Archived", tone: "soft" },
+  EXPIRED: { text: "Expired", tone: "soft" },
   RECORDED: { text: "Recorded" },
   REVERSED: { text: "Reversed", tone: "soft" },
   SENT: { text: "Sent" },

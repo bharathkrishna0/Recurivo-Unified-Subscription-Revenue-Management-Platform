@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { UpcomingSection } from "@/components/feedback/upcoming";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Sales" };
-
-export default function Page() {
-  return <UpcomingSection title="Sales" description="Quotation templates and quotations." />;
+export default function SalesPage() {
+  redirect("/app/sales/quotations");
 }
