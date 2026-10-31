@@ -13,9 +13,11 @@ Delivered milestone by milestone, one pull request each:
 | 1 | Foundations: schema, design system, AppShell, auth/RBAC, outbox worker, seed, CI | done |
 | 2 | Catalog & settings: products/variants, plans, taxes, discounts, staff invitations | done |
 | 3 | Sales & subscriptions: customers, templates, quotations, server-side pricing, lifecycle | done |
-| 4 | Billing: idempotent cycle worker, invoices, PDF/email, payments, exceptions | this branch |
-| 5 | Customer portal, Overview, Insights, CSV export, audit log | planned |
-| 6 | Hardening: acceptance tests AT-01–AT-11, 10k performance check, accessibility | planned |
+| 4 | Billing: idempotent cycle worker, invoices, PDF/email, payments, exceptions | done |
+| 5 | Customer portal, Overview, Insights, CSV export, audit log | done |
+| 6 | Hardening: acceptance tests AT-01–AT-12, 10k performance profile, restore drill, accessibility checks | this branch |
+
+See [docs/hardening.md](docs/hardening.md) for the acceptance matrix, performance results and the restore drill.
 
 ## Run locally (Windows, no Docker)
 
@@ -59,6 +61,24 @@ All seeded accounts use the password `Recurivo#2026` (override with `SEED_PASSWO
 
 With `MAIL_TRANSPORT=sandbox`, emails such as password-reset links are stored in Postgres and listed at http://localhost:3000/dev/mailbox (disabled in production).
 
+## Screenshots
+
+| Overview | Insights |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Insights](docs/screenshots/insights.png) |
+| **Subscriptions** | **Customer portal** |
+| ![Subscriptions](docs/screenshots/subscriptions.png) | ![Customer portal](docs/screenshots/portal.png) |
+
+Regenerate with `SCREENSHOTS=1 npm run e2e -- tests/e2e/docs.spec.ts`.
+
+### Demo walkthrough
+
+1. Sign in as `admin@recurivo.test`. Catalog shows CRM with the Odoo +560 variant. Sales → New quotation prices it on the server.
+2. Send, confirm and activate the quotation, then Billing → Run billing now issues the invoice. The PDF and email appear in `/dev/mailbox`.
+3. Record a partial payment under Billing → Payments. The invoice moves to Partially paid with the balance shown.
+4. Sign in as `billing@acme.test` to see the same invoice, balance and receipt in the portal.
+5. Insights reconciles billed, collected and outstanding amounts, and each CSV export is recorded in Settings → Audit log.
+
 ## Scripts
 
 | Command | Purpose |
@@ -68,6 +88,10 @@ With `MAIL_TRANSPORT=sandbox`, emails such as password-reset links are stored in
 | `npm run lint` / `typecheck` | ESLint / `tsc --noEmit` |
 | `npm test` | Unit tests (no database) |
 | `npm run test:integration` | Database tests (needs `DATABASE_URL`) |
+| `npm run test:all` | Unit and database tests |
+| `npm run e2e` | Playwright journeys with axe accessibility checks against `npm run start` (run `npm run build` first; `CHROME_PATH` selects a local Chrome, otherwise `npx playwright install chromium`) |
+| `npm run perf` | AT-11 profile: seeds 10,000 subscriptions in a separate organization and reports p50/p95/p99 |
+| `scripts/restore-drill.sh` | AT-12 backup/restore drill with reconciliation (`PG_EXEC="docker exec -i recurivo-pg"` for Docker) |
 | `npm run db:migrate` / `db:seed` / `db:reset` | Apply migrations / seed demo data / reset |
 
 ## Design decisions

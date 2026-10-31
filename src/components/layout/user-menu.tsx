@@ -9,7 +9,6 @@ export function UserMenu({ name, email, roleLabel }: { name: string; email: stri
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         className="flex h-10 items-center gap-2 rounded-control px-2 text-body hover:bg-surface-hover data-[state=open]:bg-surface-pressed"
-        aria-label={`Account menu for ${name}`}
       >
         <span className="flex size-7 items-center justify-center rounded-full border border-line-strong text-micro font-semibold" aria-hidden>
           {name
@@ -19,7 +18,8 @@ export function UserMenu({ name, email, roleLabel }: { name: string; email: stri
             .join("")
             .toUpperCase()}
         </span>
-        <span className="hidden max-w-40 truncate sm:inline">{name}</span>
+        <span className="sr-only max-w-40 truncate sm:not-sr-only">{name}</span>
+        <span className="sr-only">, account menu</span>
         <ChevronDown size={14} strokeWidth={1.75} aria-hidden />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
