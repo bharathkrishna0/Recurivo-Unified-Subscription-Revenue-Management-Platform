@@ -1,0 +1,690 @@
+// Recurivo system of record. Money columns are fixed-point DECIMAL; billing
+// dates are DATE values interpreted in the organization's business timezone.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ProductType {
+  SERVICE
+  GOODS
+}
+
+enum AdjustmentType {
+  FIXED
+  PERCENT
+}
+
+enum BillingInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum CatalogStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaxScope {
+  ALL_PRODUCTS
+  SELECTED_PRODUCTS
+}
+
+enum DiscountType {
+  FIXED
+  PERCENT
+}
+
+enum DiscountScope {
+  PRODUCT
+  SUBSCRIPTION
+}
+
+enum SubscriptionStatus {
+  DRAFT
+  QUOTATION
+  CONFIRMED
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum CycleStatus {
+  INVOICED
+  FAILED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  NOT_SENT
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  CARD_EXTERNAL
+  UPI
+  OTHER
+}
+
+enum PaymentStatus {
+  RECORDED
+  REVERSED
+}
+
+enum ExceptionType {
+  CYCLE_FAILED
+  SEND_FAILED
+  UNMATCHED_PAYMENT
+  DUPLICATE_EVENT
+}
+
+enum ExceptionStatus {
+  OPEN
+  RESOLVED
+}
+
+enum OutboxStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+model Organization {
+  id                String   @id @default(cuid())
+  legalName         String
+  currency          String   @default("INR")
+  timezone          String   @default("Asia/Kolkata")
+  locale            String   @default("en-IN")
+  supportEmail      String?
+  paymentTermsDays  Int      @default(15)
+  passwordMinLength Int      @default(9)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users         User[]
+  customers     Customer[]
+  products      Product[]
+  plans         Plan[]
+  taxRules      TaxRule[]
+  discountRules DiscountRule[]
+  templates     QuotationTemplate[]
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  payments      Payment[]
+  exceptions    BillingException[]
+  auditEvents   AuditEvent[]
+  sequences     Sequence[]
+  invitations   StaffInvitation[]
+}
+
+/// Gap-free, organization-scoped document numbering (SUB-00001, INV-00001...).
+model Sequence {
+  organizationId String
+  key            String
+  value          Int          @default(0)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, key])
+}
+
+model User {
+  id             String     @id @default(cuid())
+  organizationId String
+  email          String     @unique
+  name           String
+  passwordHash   String
+  role           Role
+  permissions    String[]   @default([])
+  status         UserStatus @default(ACTIVE)
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization       Organization         @relation(fields: [organizationId], references: [id])
+  sessions           Session[]
+  resetTokens        PasswordResetToken[]
+  customer           Customer?            @relation("CustomerPortalUser")
+  ownedSubscriptions Subscription[]       @relation("SubscriptionOwner")
+
+  @@index([organizationId, role])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  userAgent  String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Sliding-window counters for login, registration and reset throttling.
+model RateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+}
+
+model StaffInvitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  name           String
+  role           Role         @default(STAFF)
+  permissions    String[]     @default([])
+  tokenHash      String       @unique
+  invitedById    String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, email])
+}
+
+model Customer {
+  id             String    @id @default(cuid())
+  organizationId String
+  portalUserId   String?   @unique
+  businessName   String
+  contactName    String
+  email          String
+  phone          String?
+  billingAddress String?
+  taxId          String?
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  portalUser    User?          @relation("CustomerPortalUser", fields: [portalUserId], references: [id])
+  subscriptions Subscription[]
+  invoices      Invoice[]
+  payments      Payment[]
+
+  @@index([organizationId, businessName])
+  @@index([organizationId, email])
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  type           ProductType   @default(SERVICE)
+  salePrice      Decimal       @db.Decimal(18, 4)
+  costPrice      Decimal?      @db.Decimal(18, 4)
+  notes          String?
+  status         CatalogStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization      Organization            @relation(fields: [organizationId], references: [id])
+  variants          ProductVariant[]
+  plans             Plan[]
+  taxRules          TaxRule[]               @relation("ProductTaxRules")
+  discountRules     DiscountRule[]
+  subscriptionLines SubscriptionLine[]
+  templateLines     QuotationTemplateLine[]
+  invoiceLines      InvoiceLine[]
+
+  @@index([organizationId, status])
+}
+
+model ProductVariant {
+  id              String         @id @default(cuid())
+  productId       String
+  attribute       String
+  value           String
+  adjustmentType  AdjustmentType @default(FIXED)
+  adjustmentValue Decimal        @db.Decimal(18, 4)
+  status          CatalogStatus  @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  product           Product                 @relation(fields: [productId], references: [id])
+  subscriptionLines SubscriptionLine[]
+  templateLines     QuotationTemplateLine[]
+  invoiceLines      InvoiceLine[]
+
+  @@unique([productId, attribute, value])
+}
+
+model Plan {
+  id                  String          @id @default(cuid())
+  organizationId      String
+  productId           String
+  name                String
+  interval            BillingInterval
+  price               Decimal         @db.Decimal(18, 4)
+  minQuantity         Int             @default(1)
+  termLength          Int?
+  availableFrom       DateTime?       @db.Date
+  availableUntil      DateTime?       @db.Date
+  allowPause          Boolean         @default(false)
+  allowEarlyClose     Boolean         @default(false)
+  allowRenewal        Boolean         @default(true)
+  autoCloseAtExpiry   Boolean         @default(true)
+  customerSelfService Boolean         @default(false)
+  status              CatalogStatus   @default(ACTIVE)
+  version             Int             @default(1)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  organization  Organization        @relation(fields: [organizationId], references: [id])
+  product       Product             @relation(fields: [productId], references: [id])
+  versions      PlanVersion[]
+  subscriptions Subscription[]
+  templates     QuotationTemplate[]
+
+  @@index([organizationId, status])
+}
+
+/// Append-only price history; existing subscriptions keep their own line snapshots.
+model PlanVersion {
+  id          String   @id @default(cuid())
+  planId      String
+  version     Int
+  price       Decimal  @db.Decimal(18, 4)
+  minQuantity Int
+  changedById String?
+  createdAt   DateTime @default(now())
+  plan        Plan     @relation(fields: [planId], references: [id])
+
+  @@unique([planId, version])
+}
+
+model TaxRule {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  jurisdiction   String?
+  rate           Decimal       @db.Decimal(7, 4)
+  scope          TaxScope      @default(ALL_PRODUCTS)
+  effectiveFrom  DateTime      @db.Date
+  effectiveUntil DateTime?     @db.Date
+  status         CatalogStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  products     Product[]    @relation("ProductTaxRules")
+
+  @@index([organizationId, status])
+}
+
+model DiscountRule {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  type           DiscountType
+  value          Decimal       @db.Decimal(18, 4)
+  scope          DiscountScope
+  productId      String?
+  minQuantity    Int?
+  minAmount      Decimal?      @db.Decimal(18, 4)
+  startsAt       DateTime      @db.Date
+  endsAt         DateTime?     @db.Date
+  usageLimit     Int?
+  usageCount     Int           @default(0)
+  priority       Int           @default(0)
+  status         CatalogStatus @default(ACTIVE)
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  product      Product?             @relation(fields: [productId], references: [id])
+  redemptions  DiscountRedemption[]
+
+  @@index([organizationId, status])
+}
+
+model DiscountRedemption {
+  id             String       @id @default(cuid())
+  discountRuleId String
+  invoiceId      String
+  amount         Decimal      @db.Decimal(18, 4)
+  reversedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  discountRule   DiscountRule @relation(fields: [discountRuleId], references: [id])
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+
+  @@unique([discountRuleId, invoiceId])
+}
+
+model QuotationTemplate {
+  id               String        @id @default(cuid())
+  organizationId   String
+  name             String
+  validityDays     Int           @default(30)
+  planId           String
+  paymentTermsDays Int?
+  terms            String?
+  status           CatalogStatus @default(ACTIVE)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization  Organization            @relation(fields: [organizationId], references: [id])
+  plan          Plan                    @relation(fields: [planId], references: [id])
+  lines         QuotationTemplateLine[]
+  subscriptions Subscription[]
+}
+
+model QuotationTemplateLine {
+  id         String            @id @default(cuid())
+  templateId String
+  productId  String
+  variantId  String?
+  quantity   Int
+  position   Int               @default(0)
+  template   QuotationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id])
+  variant    ProductVariant?   @relation(fields: [variantId], references: [id])
+}
+
+/// A subscription starts life as a quotation: Draft -> Quotation -> Confirmed -> Active -> Closed,
+/// with Active <-> Paused when the plan permits it.
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String
+  number           String
+  customerId       String
+  planId           String
+  templateId       String?
+  ownerId          String?
+  status           SubscriptionStatus @default(DRAFT)
+  quoteIssuedOn    DateTime?          @db.Date
+  quoteValidUntil  DateTime?          @db.Date
+  startDate        DateTime           @db.Date
+  endDate          DateTime?          @db.Date
+  nextBillDate     DateTime?          @db.Date
+  cyclesBilled     Int                @default(0)
+  paymentTermsDays Int
+  terms            String?
+  revision         Int                @default(1)
+  version          Int                @default(1)
+  renewedFromId    String?            @unique
+  confirmedAt      DateTime?
+  activatedAt      DateTime?
+  pausedAt         DateTime?
+  closedAt         DateTime?
+  closeReason      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  customer     Customer           @relation(fields: [customerId], references: [id])
+  plan         Plan               @relation(fields: [planId], references: [id])
+  template     QuotationTemplate? @relation(fields: [templateId], references: [id])
+  owner        User?              @relation("SubscriptionOwner", fields: [ownerId], references: [id])
+  renewedFrom  Subscription?      @relation("Renewal", fields: [renewedFromId], references: [id])
+  renewal      Subscription?      @relation("Renewal")
+  lines        SubscriptionLine[]
+  cycles       BillingCycle[]
+  invoices     Invoice[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, nextBillDate])
+  @@index([customerId])
+}
+
+model SubscriptionLine {
+  id             String          @id @default(cuid())
+  subscriptionId String
+  productId      String
+  variantId      String?
+  description    String
+  quantity       Int
+  unitPrice      Decimal         @db.Decimal(18, 4)
+  position       Int             @default(0)
+  subscription   Subscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id])
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+}
+
+/// One row per billed period. UNIQUE(subscriptionId, periodStart) is the
+/// database guarantee that a period is never invoiced twice.
+model BillingCycle {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  periodStart    DateTime     @db.Date
+  periodEnd      DateTime     @db.Date
+  revision       Int
+  status         CycleStatus
+  attempts       Int          @default(1)
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  invoices       Invoice[]
+
+  @@unique([subscriptionId, periodStart])
+}
+
+model Invoice {
+  id             String         @id @default(cuid())
+  organizationId String
+  number         String
+  customerId     String
+  subscriptionId String?
+  cycleId        String?
+  status         InvoiceStatus  @default(DRAFT)
+  currency       String
+  issueDate      DateTime       @db.Date
+  dueDate        DateTime       @db.Date
+  periodStart    DateTime?      @db.Date
+  periodEnd      DateTime?      @db.Date
+  subtotal       Decimal        @db.Decimal(18, 4)
+  discountTotal  Decimal        @db.Decimal(18, 4)
+  taxTotal       Decimal        @db.Decimal(18, 4)
+  total          Decimal        @db.Decimal(18, 4)
+  amountPaid     Decimal        @default(0) @db.Decimal(18, 4)
+  deliveryStatus DeliveryStatus @default(NOT_SENT)
+  deliveryError  String?
+  sentAt         DateTime?
+  confirmedAt    DateTime?
+  paidAt         DateTime?
+  cancelledAt    DateTime?
+  cancelReason   String?
+  version        Int            @default(1)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  customer     Customer             @relation(fields: [customerId], references: [id])
+  subscription Subscription?        @relation(fields: [subscriptionId], references: [id])
+  cycle        BillingCycle?        @relation(fields: [cycleId], references: [id])
+  lines        InvoiceLine[]
+  allocations  PaymentAllocation[]
+  redemptions  DiscountRedemption[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status, dueDate])
+  @@index([customerId])
+}
+
+model InvoiceLine {
+  id             String          @id @default(cuid())
+  invoiceId      String
+  productId      String?
+  variantId      String?
+  description    String
+  quantity       Int
+  unitPrice      Decimal         @db.Decimal(18, 4)
+  lineSubtotal   Decimal         @db.Decimal(18, 4)
+  discountAmount Decimal         @db.Decimal(18, 4)
+  discountRuleId String?
+  taxableAmount  Decimal         @db.Decimal(18, 4)
+  taxRate        Decimal         @db.Decimal(7, 4)
+  taxAmount      Decimal         @db.Decimal(18, 4)
+  total          Decimal         @db.Decimal(18, 4)
+  taxBreakdown   Json            @default("[]")
+  position       Int             @default(0)
+  invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id])
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  organizationId String
+  number         String
+  customerId     String
+  method         PaymentMethod
+  amount         Decimal       @db.Decimal(18, 4)
+  receivedOn     DateTime      @db.Date
+  reference      String?
+  note           String?
+  status         PaymentStatus @default(RECORDED)
+  idempotencyKey String
+  recordedById   String
+  reversedAt     DateTime?
+  reversalReason String?
+  createdAt      DateTime      @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  customer     Customer            @relation(fields: [customerId], references: [id])
+  allocations  PaymentAllocation[]
+
+  @@unique([organizationId, number])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, receivedOn])
+  @@index([reference])
+}
+
+model PaymentAllocation {
+  id         String    @id @default(cuid())
+  paymentId  String
+  invoiceId  String
+  amount     Decimal   @db.Decimal(18, 4)
+  reversedAt DateTime?
+  createdAt  DateTime  @default(now())
+  payment    Payment   @relation(fields: [paymentId], references: [id])
+  invoice    Invoice   @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([paymentId])
+}
+
+model BillingException {
+  id             String          @id @default(cuid())
+  organizationId String
+  type           ExceptionType
+  relatedType    String
+  relatedId      String
+  summary        String
+  detail         String?
+  attempts       Int             @default(1)
+  status         ExceptionStatus @default(OPEN)
+  dedupeKey      String
+  occurredAt     DateTime        @default(now())
+  lastAttemptAt  DateTime        @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolution     String?
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, status])
+}
+
+/// Transactional outbox: rows are written in the same transaction as the
+/// business change and delivered by the worker.
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  type        String
+  payload     Json
+  dedupeKey   String       @unique
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  availableAt DateTime     @default(now())
+  lastError   String?
+  createdAt   DateTime     @default(now())
+  processedAt DateTime?
+
+  @@index([status, availableAt])
+}
+
+/// Local sandbox mail transport (used when SMTP is not configured).
+model SandboxEmail {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  provider   String
+  eventId    String
+  checksum   String
+  status     String
+  receivedAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+model AuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorId        String?
+  actorLabel     String
+  action         String
+  objectType     String
+  objectId       String
+  summary        String
+  changes        Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, objectType, objectId])
+  @@index([organizationId, createdAt])
+}
