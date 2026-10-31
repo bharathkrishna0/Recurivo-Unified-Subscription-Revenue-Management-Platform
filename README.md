@@ -11,8 +11,8 @@ Delivered milestone by milestone, one pull request each:
 | # | Milestone | State |
 |---|---|---|
 | 1 | Foundations: schema, design system, AppShell, auth/RBAC, outbox worker, seed, CI | done |
-| 2 | Catalog & settings: products/variants, plans, taxes, discounts, staff invitations | this branch |
-| 3 | Sales & subscriptions: templates, quotations, pricing engine, lifecycle | planned |
+| 2 | Catalog & settings: products/variants, plans, taxes, discounts, staff invitations | done |
+| 3 | Sales & subscriptions: customers, templates, quotations, server-side pricing, lifecycle | this branch |
 | 4 | Billing: idempotent cycle worker, invoices, PDF/email, payments, exceptions | planned |
 | 5 | Customer portal, Overview, Insights, CSV export, audit log | planned |
 | 6 | Hardening: acceptance tests AT-01–AT-11, 10k performance check, accessibility | planned |
