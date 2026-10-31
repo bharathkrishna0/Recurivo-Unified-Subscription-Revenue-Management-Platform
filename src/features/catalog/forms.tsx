@@ -6,6 +6,7 @@ import type { FormState } from "@/app/actions/form-state";
 import { Notice } from "@/components/feedback/states";
 import { Button } from "@/components/primitives/button";
 import { CheckboxField, FormSection, SelectField, TextareaField } from "@/components/primitives/controls";
+import { keepValues } from "@/components/primitives/keep-values";
 import { TextField } from "@/components/primitives/field";
 
 const initial: FormState = {};
@@ -32,7 +33,7 @@ export function ProductForm({ product, currency, cancelHref }: { product?: Produ
   const [state, action, pending] = useActionState(saveProductAction, initial);
   const v = { ...product, ...state.values };
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={product?.id ?? ""} />
       <FormSection title="Details">
@@ -70,7 +71,7 @@ export function ProductForm({ product, currency, cancelHref }: { product?: Produ
 export function VariantForm({ productId, basePrice, currency }: { productId: string; basePrice: string; currency: string }) {
   const [state, action, pending] = useActionState(addVariantAction, initial);
   return (
-    <form action={action} className="flex flex-col gap-4" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex flex-col gap-4" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="productId" value={productId} />
       <div className="grid gap-4 md:grid-cols-2">
@@ -138,7 +139,7 @@ export function PlanForm({
   const v: Record<string, string | boolean | undefined> = { ...plan, ...state.values };
   const flag = (name: keyof PlanDefaults, fallback: boolean) => (state.values ? state.values[name] === "on" : (plan?.[name] as boolean | undefined) ?? fallback);
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={plan?.id ?? ""} />
       {plan?.id && activeSubscriptions > 0 ? (
