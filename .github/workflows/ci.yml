@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: recurivo
+          POSTGRES_PASSWORD: recurivo
+          POSTGRES_DB: recurivo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recurivo"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://recurivo:recurivo@localhost:5432/recurivo
+      APP_URL: http://localhost:3000
+      MAIL_TRANSPORT: sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run test:all
+      - run: npm run build

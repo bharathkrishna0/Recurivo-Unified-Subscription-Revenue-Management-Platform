@@ -1,0 +1,18 @@
+# Optional local Postgres. Any PostgreSQL 14+ works; see README for a non-Docker setup.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: recurivo
+      POSTGRES_PASSWORD: recurivo
+      POSTGRES_DB: recurivo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recurivo"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:
