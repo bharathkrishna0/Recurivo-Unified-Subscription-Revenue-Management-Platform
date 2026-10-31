@@ -77,3 +77,13 @@ export function billingPeriod(start: Date, interval: BillingIntervalName, k: num
 export function compareDates(a: Date, b: Date): number {
   return a.getTime() - b.getTime();
 }
+
+/** Index k of the billing period that starts on or before `date` (anchored at `start`). */
+export function periodIndexAt(start: Date, interval: BillingIntervalName, date: Date): number {
+  const days = Math.floor((date.getTime() - start.getTime()) / 86_400_000);
+  if (days <= 0) return 0;
+  const minLength = { DAILY: 1, WEEKLY: 7, MONTHLY: 31, YEARLY: 366 }[interval];
+  let k = Math.floor(days / minLength);
+  while (compareDates(addIntervals(start, interval, k + 1), date) <= 0) k++;
+  return k;
+}
