@@ -12,8 +12,8 @@ Delivered milestone by milestone, one pull request each:
 |---|---|---|
 | 1 | Foundations: schema, design system, AppShell, auth/RBAC, outbox worker, seed, CI | done |
 | 2 | Catalog & settings: products/variants, plans, taxes, discounts, staff invitations | done |
-| 3 | Sales & subscriptions: customers, templates, quotations, server-side pricing, lifecycle | this branch |
-| 4 | Billing: idempotent cycle worker, invoices, PDF/email, payments, exceptions | planned |
+| 3 | Sales & subscriptions: customers, templates, quotations, server-side pricing, lifecycle | done |
+| 4 | Billing: idempotent cycle worker, invoices, PDF/email, payments, exceptions | this branch |
 | 5 | Customer portal, Overview, Insights, CSV export, audit log | planned |
 | 6 | Hardening: acceptance tests AT-01–AT-11, 10k performance check, accessibility | planned |
 
@@ -41,7 +41,7 @@ Requirements: Node.js 20.9+ (22 LTS recommended) and PostgreSQL 14+.
 
    ```powershell
    npm run dev      # http://localhost:3000
-   npm run worker   # delivers queued emails (and, later, billing runs)
+   npm run worker   # runs billing cycles every minute and delivers queued emails/invoices
    ```
 
 Docker users can run `docker compose up -d db` instead of step 1.
@@ -64,7 +64,7 @@ With `MAIL_TRANSPORT=sandbox`, emails such as password-reset links are stored in
 | Command | Purpose |
 |---|---|
 | `npm run dev` / `build` / `start` | Next.js app |
-| `npm run worker` | Background worker (outbox delivery) |
+| `npm run worker` | Background worker: billing cycles (`BILLING_INTERVAL_MS`, default 60s) and outbox delivery |
 | `npm run lint` / `typecheck` | ESLint / `tsc --noEmit` |
 | `npm test` | Unit tests (no database) |
 | `npm run test:integration` | Database tests (needs `DATABASE_URL`) |
@@ -87,3 +87,11 @@ One organization per deployment; currency and timezone set per organization (see
 ## Design system
 
 "Quiet Ledger": monochrome, Inter only (self-hosted variable font in `public/fonts`, SIL Open Font License), tabular numerals for money, hairline dividers instead of cards, one primary action per page, statuses communicated by wording and weight rather than color. Tokens live in `src/styles/tokens.css`.
+
+## Billing
+
+- The worker bills every active subscription whose next bill date has arrived (in the organization's time zone). Each cycle claims the subscription row with `FOR UPDATE SKIP LOCKED`; `UNIQUE(subscriptionId, periodStart)` and a partial unique index on active invoices per cycle make retries and concurrent workers safe. Missed periods are caught up on the next run.
+- Invoice lines copy the subscription's agreed quantities and unit prices; taxes in effect on the period start are applied, and the subscription's discount is applied only if it is still valid and a usage slot can be claimed atomically.
+- Invoices are issued as Confirmed and emailed with a PDF through the outbox. Failed sends and failed cycles appear under Billing → Exceptions.
+- Payments are recorded manually and applied to open invoices (partial payments allowed). Reversals restore balances; a paid invoice must have its payments reversed before it can be cancelled.
+- Admins (or staff with `billing.manage`) can trigger a run from Billing → Invoices → Run billing now.

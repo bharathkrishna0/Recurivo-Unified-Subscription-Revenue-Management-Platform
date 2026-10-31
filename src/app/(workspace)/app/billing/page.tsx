@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { UpcomingSection } from "@/components/feedback/upcoming";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Billing" };
-
-export default function Page() {
-  return <UpcomingSection title="Billing" description="Invoices, payments and billing exceptions." />;
+export default function BillingPage() {
+  redirect("/app/billing/invoices");
 }

@@ -148,7 +148,9 @@ export default async function SubscriptionPage({ params, searchParams }: PagePro
                 <tbody>
                   {s.invoices.map((i) => (
                     <tr key={i.id}>
-                      <Td>{i.number}</Td>
+                      <Td>
+                        <RowLink href={`/app/billing/invoices/${i.id}`}>{i.number}</RowLink>
+                      </Td>
                       <Td>{formatDay(i.issueDate, org.locale)}</Td>
                       <Td numeric>{money(i.total)}</Td>
                       <Td>
