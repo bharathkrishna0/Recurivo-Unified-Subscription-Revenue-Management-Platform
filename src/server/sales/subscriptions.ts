@@ -4,16 +4,16 @@ import type { Prisma } from "@prisma/client";
 import { db, type Tx } from "@/server/db";
 import { can } from "@/lib/permissions";
 import { addDays, compareDates, todayIn } from "@/lib/dates";
-import { availableActions, checkTransition, isQuoteExpired, nextBillDateOnOrAfter, termEndDate, type LifecycleAction } from "@/lib/lifecycle";
+import { availableActions, checkTransition, CUSTOMER_ACTIONS, isQuoteExpired, nextBillDateOnOrAfter, termEndDate, type LifecycleAction } from "@/lib/lifecycle";
 import { discountState, isPlanSellable, taxRuleInEffect } from "@/lib/pricing";
 import { priceQuote } from "@/lib/quote-pricing";
 import { formatMoney } from "@/lib/formatting";
 import { recordAudit } from "@/server/platform/audit";
 import { enqueueOutbox } from "@/server/platform/outbox";
-import { AppError, invalid, notFound } from "@/server/platform/errors";
+import { AppError, forbidden, invalid, notFound } from "@/server/platform/errors";
 import { nextNumber } from "@/server/platform/sequence";
 import { parseOrThrow } from "@/server/identity/service";
-import { actorOf, requireStaff, type CurrentUser } from "@/server/identity/session";
+import { actorOf, requireStaff, requireUser, type CurrentUser } from "@/server/identity/session";
 import { dateOnly, optional, PAGE_SIZE, pageOf, textParam, wholeNumber, type Page } from "@/server/platform/validation";
 import { linesSchema, resolveLines, type LineInput } from "./lines";
 
@@ -207,18 +207,40 @@ export async function updateQuotation(id: string, input: unknown): Promise<void>
 
 const reasonSchema = z.string().trim().min(3, "Give a short reason").max(500);
 
-export async function transitionSubscription(
+type TransitionOpts = { reason?: unknown; expectedVersion?: number };
+type TransitionResult = { id: string; status: string; renewalId?: string };
+
+export async function transitionSubscription(id: string, action: LifecycleAction, opts: TransitionOpts = {}): Promise<TransitionResult> {
+  const user = await requireStaff();
+  return applyTransition(user, visibleTo(user), id, action, opts);
+}
+
+/** Customers act only on their own records, and only where the plan allows self-service (PORT-02). */
+export async function customerTransition(id: string, action: LifecycleAction, opts: TransitionOpts = {}): Promise<TransitionResult> {
+  const user = await requireUser();
+  if (user.role !== "CUSTOMER" || !user.customerId) throw forbidden();
+  if (!CUSTOMER_ACTIONS.includes(action)) throw forbidden("Only the business can make this change. Contact them for help.");
+  const scope = { organizationId: user.organizationId, customerId: user.customerId, status: { not: "DRAFT" as const } };
+  return applyTransition(user, scope, id, action, opts, (sub) => {
+    if (action !== "confirm" && !sub.plan.customerSelfService) throw forbidden("Changes to this plan are handled by the business. Contact them to make this change.");
+  });
+}
+
+async function applyTransition(
+  user: CurrentUser,
+  scope: Prisma.SubscriptionWhereInput,
   id: string,
   action: LifecycleAction,
-  opts: { reason?: unknown; expectedVersion?: number } = {},
-): Promise<{ id: string; status: string; renewalId?: string }> {
-  const user = await requireStaff();
+  opts: TransitionOpts,
+  guard?: (sub: { plan: { customerSelfService: boolean } }) => void,
+): Promise<TransitionResult> {
   return db.$transaction(async (tx) => {
     const sub = await tx.subscription.findFirst({
-      where: { id, ...visibleTo(user) },
+      where: { id, ...scope },
       include: { plan: true, renewal: { select: { id: true } }, template: true, customer: true, lines: { orderBy: { position: "asc" } } },
     });
     if (!sub) throw notFound("Subscription not found.");
+    guard?.(sub);
     if (opts.expectedVersion !== undefined && opts.expectedVersion !== sub.version) {
       throw new AppError("CONFLICT", "This subscription was changed by someone else. Reload to see its current state.");
     }
@@ -273,7 +295,7 @@ export async function transitionSubscription(
             customerId: sub.customerId,
             planId: sub.planId,
             templateId: sub.templateId,
-            ownerId: user.id,
+            ownerId: user.role === "CUSTOMER" ? sub.ownerId : user.id,
             renewedFromId: sub.id,
             startDate,
             endDate: sub.plan.termLength ? termEndDate(startDate, sub.plan.interval, sub.plan.termLength) : null,

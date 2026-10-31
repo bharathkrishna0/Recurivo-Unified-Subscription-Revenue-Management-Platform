@@ -61,6 +61,13 @@ export function checkTransition(action: LifecycleAction, s: LifecycleSubject, to
   }
 }
 
+/** Portal self-service (PORT-02): a customer may accept a sent quotation; other changes only on plans that enable self-service. */
+export const CUSTOMER_ACTIONS: LifecycleAction[] = ["confirm", "pause", "resume", "close", "renew"];
+
+export function customerActions(s: LifecycleSubject & { plan: { customerSelfService: boolean } }, today: Date): LifecycleAction[] {
+  return CUSTOMER_ACTIONS.filter((a) => (a === "confirm" || s.plan.customerSelfService) && checkTransition(a, s, today).ok);
+}
+
 export function availableActions(s: LifecycleSubject, today: Date): LifecycleAction[] {
   return LIFECYCLE_ACTIONS.filter((a) => checkTransition(a, s, today).ok);
 }

@@ -6,7 +6,7 @@ export function SettingsNav({ current, user }: { current: string; user: CurrentU
     { label: "Organization", href: "/app/settings" },
     { label: "Taxes", href: "/app/settings/taxes" },
     { label: "Discounts", href: "/app/settings/discounts" },
-    ...(user.role === "ADMIN" ? [{ label: "Team", href: "/app/settings/team" }] : []),
+    ...(user.role === "ADMIN" ? [{ label: "Team", href: "/app/settings/team" }, { label: "Audit log", href: "/app/settings/audit" }] : []),
   ];
   return <SubNav current={current} items={items} />;
 }

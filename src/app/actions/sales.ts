@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createCustomer, updateCustomer } from "@/server/sales/customers";
 import { saveTemplate, setTemplateStatus } from "@/server/sales/templates";
-import { createQuotation, previewQuotation, transitionSubscription, updateQuotation } from "@/server/sales/subscriptions";
+import { createQuotation, customerTransition, previewQuotation, transitionSubscription, updateQuotation } from "@/server/sales/subscriptions";
 import { LIFECYCLE_ACTIONS, type LifecycleAction } from "@/lib/lifecycle";
 import { errorState, formValues, type FormState } from "./form-state";
 
@@ -120,16 +120,20 @@ export async function saveQuotationAction(_prev: QuoteFormState, form: FormData)
 export async function transitionAction(_prev: FormState, form: FormData): Promise<FormState> {
   const id = String(form.get("id") ?? "");
   const action = String(form.get("action") ?? "") as LifecycleAction;
+  // Authority comes from the session: customerTransition rejects anyone who is not a customer.
+  const portal = form.get("from") === "portal";
   let renewalId: string | undefined;
   try {
     if (!LIFECYCLE_ACTIONS.includes(action)) throw new Error("Unknown action");
     const version = Number(form.get("expectedVersion"));
-    ({ renewalId } = await transitionSubscription(id, action, {
-      reason: form.get("reason"),
-      expectedVersion: Number.isInteger(version) ? version : undefined,
-    }));
+    const opts = { reason: form.get("reason"), expectedVersion: Number.isInteger(version) ? version : undefined };
+    ({ renewalId } = portal ? await customerTransition(id, action, opts) : await transitionSubscription(id, action, opts));
   } catch (error) {
     return errorState(error, formValues(form));
+  }
+  if (portal) {
+    revalidatePath("/portal", "layout");
+    redirect(`/portal/subscriptions/${id}?done=${action}`);
   }
   revalidatePath("/app/subscriptions");
   revalidatePath("/app/sales/quotations");
