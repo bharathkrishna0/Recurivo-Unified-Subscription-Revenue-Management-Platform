@@ -57,6 +57,45 @@ async function main() {
     }
   }
 
+  if ((await db.product.count({ where: { organizationId: org.id } })) === 0) {
+    const crm = await db.product.create({
+      data: { organizationId: org.id, name: "CRM Suite", type: "SERVICE", salePrice: "2000", costPrice: "800", notes: "Per seat licence" },
+    });
+    await db.productVariant.createMany({
+      data: [
+        { productId: crm.id, attribute: "Brand", value: "Odoo", adjustmentType: "FIXED", adjustmentValue: "560" },
+        { productId: crm.id, attribute: "Brand", value: "Standard", adjustmentType: "FIXED", adjustmentValue: "0" },
+      ],
+    });
+    const support = await db.product.create({ data: { organizationId: org.id, name: "Priority Support", type: "SERVICE", salePrice: "1500" } });
+    const plans = [
+      { productId: crm.id, name: "CRM Monthly", interval: "MONTHLY" as const, price: "2000", minQuantity: 1, allowPause: true, allowEarlyClose: true },
+      { productId: crm.id, name: "CRM Yearly", interval: "YEARLY" as const, price: "21600", minQuantity: 5, allowPause: false, allowEarlyClose: false },
+      { productId: support.id, name: "Support Monthly", interval: "MONTHLY" as const, price: "1500", minQuantity: 1, allowPause: true, allowEarlyClose: true },
+    ];
+    for (const p of plans) {
+      const plan = await db.plan.create({ data: { organizationId: org.id, ...p } });
+      await db.planVersion.create({ data: { planId: plan.id, version: 1, price: p.price, minQuantity: p.minQuantity } });
+    }
+    await db.taxRule.create({
+      data: { organizationId: org.id, name: "GST 18%", jurisdiction: "India", rate: "18", scope: "ALL_PRODUCTS", effectiveFrom: new Date("2026-01-01T00:00:00Z") },
+    });
+    const admin = await db.user.findUniqueOrThrow({ where: { email: "admin@recurivo.test" } });
+    await db.discountRule.create({
+      data: {
+        organizationId: org.id,
+        name: "Annual commitment 10%",
+        type: "PERCENT",
+        value: "10",
+        scope: "SUBSCRIPTION",
+        minQuantity: 5,
+        startsAt: new Date("2026-01-01T00:00:00Z"),
+        usageLimit: 100,
+        createdById: admin.id,
+      },
+    });
+  }
+
   console.log(`Seeded organization "${org.legalName}".`);
   console.log("Demo accounts (password from SEED_PASSWORD or the default in prisma/seed.ts):");
   console.log("  admin@recurivo.test   Administrator");

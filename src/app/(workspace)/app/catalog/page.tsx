@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import { UpcomingSection } from "@/components/feedback/upcoming";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Catalog" };
-
-export default function Page() {
-  return <UpcomingSection title="Catalog" description="Products, variants and recurring plans." />;
+export default function CatalogPage() {
+  redirect("/app/catalog/products");
 }
