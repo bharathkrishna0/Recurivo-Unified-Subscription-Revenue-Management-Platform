@@ -7,6 +7,7 @@ import type { FormState } from "@/app/actions/form-state";
 import { FormMessage } from "@/features/catalog/forms";
 import { Button } from "@/components/primitives/button";
 import { CheckboxField, FormSection, SelectField, TextareaField } from "@/components/primitives/controls";
+import { keepValues } from "@/components/primitives/keep-values";
 import { TextField, inputClass } from "@/components/primitives/field";
 
 const initial: FormState = {};
@@ -37,7 +38,7 @@ export function BillingOpForm({
     );
   }
   return (
-    <form action={action} className="flex w-full max-w-[560px] flex-col gap-3 border border-line-strong p-4" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex w-full max-w-[560px] flex-col gap-3 border border-line-strong p-4" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="op" value={op} />
       <input type="hidden" name="id" value={id} />
@@ -77,7 +78,7 @@ export function PaymentForm({ customerId, idempotencyKey, today, invoices }: { c
   const v = state.values ?? {};
   const f = state.fields ?? {};
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-8" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-8" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="customerId" value={customerId} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />

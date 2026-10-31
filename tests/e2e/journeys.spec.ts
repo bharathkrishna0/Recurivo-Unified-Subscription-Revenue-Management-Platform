@@ -63,3 +63,15 @@ test("customer sees only their own portal records", async ({ page }) => {
   const staff = await page.goto("/app");
   expect(new URL(staff!.url()).pathname).not.toBe("/app");
 });
+
+test("previewing a quotation keeps the chosen customer and plan", async ({ page }) => {
+  await signIn(page, "admin@recurivo.test");
+  await page.goto("/app/sales/quotations/new");
+  await page.getByLabel("Customer").selectOption({ label: "Acme Retail LLP" });
+  await page.getByLabel("Plan").selectOption({ label: "CRM Monthly" });
+  await page.getByLabel("Product").first().selectOption({ label: "CRM Suite" });
+  await page.getByRole("button", { name: "Preview totals" }).click();
+  await expect(page.getByText("Total per period")).toBeVisible();
+  await expect(page.getByLabel("Customer")).toHaveValue(/.+/);
+  await expect(page.getByLabel("Plan")).toHaveValue(/.+/);
+});

@@ -12,6 +12,7 @@ import {
 import type { FormState } from "@/app/actions/form-state";
 import { Button } from "@/components/primitives/button";
 import { CheckboxField, FormSection, SelectField } from "@/components/primitives/controls";
+import { keepValues } from "@/components/primitives/keep-values";
 import { TextField } from "@/components/primitives/field";
 import { PasswordField } from "@/components/primitives/password-field";
 import { FormMessage } from "@/features/catalog/forms";
@@ -32,7 +33,7 @@ export function OrganizationForm({ org, currencyLocked }: { org: Record<string, 
   const [state, action, pending] = useActionState(saveOrganizationAction, initial);
   const v = { ...org, ...state.values };
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <FormSection title="Legal identity" description="Shown on quotations and invoices.">
         <TextField label="Legal name" name="legalName" defaultValue={v.legalName} error={state.fields?.legalName} />
@@ -74,7 +75,7 @@ export function TaxForm({
   const [rate, setRate] = useState(v.rate ?? "");
   const example = Number(rate) >= 0 && rate !== "" ? ((1000 * Number(rate)) / 100).toFixed(2) : null;
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={tax?.id ?? ""} />
       <FormSection title="Rule">
@@ -128,7 +129,7 @@ export function DiscountForm({ products, currency, today }: { products: { id: st
   const [scope, setScope] = useState(v.scope ?? "SUBSCRIPTION");
   const [type, setType] = useState(v.type ?? "PERCENT");
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <FormSection title="Discount">
         <TextField label="Name" name="name" defaultValue={v.name} error={state.fields?.name} />
@@ -180,7 +181,7 @@ export function DiscountForm({ products, currency, today }: { products: { id: st
 export function InviteForm({ permissions }: { permissions: [string, string][] }) {
   const [state, action, pending] = useActionState(inviteStaffAction, initial);
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-4" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-4" noValidate>
       <FormMessage state={state} />
       <div className="grid gap-4 md:grid-cols-2">
         <TextField label="Name" name="name" defaultValue={state.values?.name} error={state.fields?.name} />
@@ -204,7 +205,7 @@ export function InviteForm({ permissions }: { permissions: [string, string][] })
 export function PermissionsForm({ userId, current, permissions }: { userId: string; current: string[]; permissions: [string, string][] }) {
   const [state, action, pending] = useActionState(updatePermissionsAction, initial);
   return (
-    <form action={action} className="flex flex-col gap-2" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex flex-col gap-2" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="userId" value={userId} />
       {permissions.map(([key, label]) => (
@@ -223,7 +224,7 @@ export function PermissionsForm({ userId, current, permissions }: { userId: stri
 export function AcceptInvitationForm({ token, name, minLength }: { token: string; name: string; minLength: number }) {
   const [state, action, pending] = useActionState(acceptInvitationAction, initial);
   return (
-    <form action={action} className="flex flex-col gap-5" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex flex-col gap-5" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token} />
       <TextField label="Your name" name="name" defaultValue={state.values?.name ?? name} error={state.fields?.name} autoComplete="name" />

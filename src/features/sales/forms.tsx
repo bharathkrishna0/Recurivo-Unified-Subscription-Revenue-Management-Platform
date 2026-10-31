@@ -6,6 +6,7 @@ import type { FormState } from "@/app/actions/form-state";
 import { FormMessage } from "@/features/catalog/forms";
 import { Button } from "@/components/primitives/button";
 import { FormSection, SelectField, TextareaField } from "@/components/primitives/controls";
+import { keepValues } from "@/components/primitives/keep-values";
 import { TextField } from "@/components/primitives/field";
 import { formatMoney } from "@/lib/formatting";
 import { LineEditor, useLineRows, type EditorLine, type ProductOption } from "./line-editor";
@@ -40,7 +41,7 @@ export function CustomerForm({ customer, cancelHref }: { customer?: CustomerDefa
   const [state, action, pending] = useActionState(saveCustomerAction, initial);
   const v = { ...customer, ...state.values };
   return (
-    <form action={action} className="flex max-w-[760px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[760px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={customer?.id ?? ""} />
       <FormSection title="Business">
@@ -81,7 +82,7 @@ export function TemplateForm({ template, plans, products, cancelHref }: { templa
   const v = { ...template, ...state.values };
   const lines = useLineRows(template?.lines ?? []);
   return (
-    <form action={action} className="flex max-w-[960px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[960px] flex-col gap-6" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={template?.id ?? ""} />
       <FormSection title="Template">
@@ -163,7 +164,7 @@ export function QuotationForm({
   };
 
   return (
-    <form action={action} className="flex max-w-[960px] flex-col gap-6" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex max-w-[960px] flex-col gap-6" noValidate>
       <FormMessage state={preview ? {} : state} />
       <input type="hidden" name="id" value={quote?.id ?? ""} />
       <input type="hidden" name="expectedVersion" value={quote?.version ?? ""} />
@@ -272,7 +273,7 @@ export function TransitionForm({
     );
   }
   return (
-    <form action={action} className="flex w-full max-w-[560px] flex-col gap-3 border border-line-strong p-4" noValidate>
+    <form action={action} onSubmit={keepValues(action)} className="flex w-full max-w-[560px] flex-col gap-3 border border-line-strong p-4" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="action" value={lifecycleAction} />

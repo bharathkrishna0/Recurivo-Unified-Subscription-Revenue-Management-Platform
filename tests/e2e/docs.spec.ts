@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * Opt-in helpers, skipped in CI:
  * - PERF=1 measures page-level p95/p99 for the AT-11 profile (run `npm run perf` first to seed it).
- * - SCREENSHOTS=1 regenerates the README screenshots in docs/screenshots.
+ * README screenshots and the demo video come from tests/e2e/demo.spec.ts (scripts/demo-media.sh).
  */
 const PASSWORD = process.env.SEED_PASSWORD ?? "Recurivo#2026";
 
@@ -35,17 +35,4 @@ test("AT-11 page timings on the 10k profile", async ({ page }) => {
     expect(Number(p(0.95))).toBeLessThan(2000);
   }
   console.log(["| Page | p50 | p95 | p99 |", "|---|---|---|---|", ...rows].join("\n"));
-});
-
-test("README screenshots", async ({ page }) => {
-  test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1");
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await signIn(page, "admin@recurivo.test");
-  for (const [path, file] of [["/app", "overview"], ["/app/subscriptions", "subscriptions"], ["/app/billing/invoices", "invoices"], ["/app/insights", "insights"]]) {
-    await page.goto(path);
-    await page.screenshot({ path: `docs/screenshots/${file}.png` });
-  }
-  await page.context().clearCookies();
-  await signIn(page, "billing@acme.test");
-  await page.screenshot({ path: "docs/screenshots/portal.png" });
 });
